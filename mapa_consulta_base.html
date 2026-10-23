@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vivienda Rural | Mapa interactivo por departamento</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+:root{--navy:#123047;--blue:#176b87;--teal:#2d8c83;--gold:#d8a84e;--ink:#193344;--muted:#647987;--line:#dce6ea;--bg:#f3f7f8;--white:#fff;--red:#b84d4d}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);font-family:Inter,Segoe UI,Arial,sans-serif;color:var(--ink)}
+header{background:linear-gradient(115deg,#102d43,#17627a);color:white;padding:25px 30px 22px}
+.eyebrow{font-size:11px;letter-spacing:1.8px;text-transform:uppercase;opacity:.8;font-weight:700}
+h1{font-size:clamp(22px,3vw,34px);margin:7px 0 6px;line-height:1.15}
+.subtitle{font-size:14px;opacity:.88;max-width:900px;line-height:1.5}
+main{max-width:1500px;margin:auto;padding:22px}
+.controls{display:flex;gap:12px;flex-wrap:wrap;align-items:end;background:white;border:1px solid var(--line);padding:15px;border-radius:14px;margin-bottom:16px;box-shadow:0 3px 12px #19334408}
+.uploadbox{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 12px;border:1px dashed #9bb5bf;border-radius:10px;background:#f7fbfc}.uploadbox input{min-width:220px;max-width:100%;padding:6px;border:0;background:transparent}.status{font-size:12px;color:var(--muted);width:100%;margin-top:2px}.badge{display:inline-flex;align-items:center;gap:7px;background:#e4f3ee;color:#176c62;border:1px solid #c6e7dc;border-radius:999px;padding:7px 11px;font-size:12px;font-weight:800}
+label{font-size:11px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:6px}
+select,input{font:inherit;padding:10px 12px;border:1px solid #cbd9df;border-radius:8px;background:#fff;color:var(--ink);min-width:200px}
+button{border:0;border-radius:8px;background:var(--navy);color:white;padding:11px 15px;font-weight:700;cursor:pointer}button:hover{background:var(--blue)}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:12px;margin-bottom:16px}
+.kpi{background:white;border:1px solid var(--line);border-radius:13px;padding:16px;box-shadow:0 3px 12px #19334408}
+.kpi .label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;font-weight:800}
+.kpi .value{font-size:clamp(22px,2.4vw,30px);font-weight:800;margin:8px 0 4px;color:var(--navy)}
+.kpi .hint{font-size:12px;color:var(--muted)}
+.layout{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(350px,.9fr);gap:16px}
+.panel{background:white;border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:0 3px 12px #19334408}
+.panelhead{padding:17px 19px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:12px}
+.panelhead h2{font-size:16px;margin:0;color:var(--navy)}.panelhead p{font-size:12px;color:var(--muted);margin:5px 0 0}
+.mapwrap{padding:8px 12px 0;min-height:450px;display:flex;align-items:center;justify-content:center;position:relative}
+#map{width:100%;height:auto;max-height:560px;overflow:visible}
+.dept{stroke:#fff;stroke-width:.8;cursor:pointer;transition:fill .15s,opacity .15s}.dept:hover{stroke:#123047;stroke-width:2;filter:brightness(.95)}.dept.selected{stroke:#102d43;stroke-width:2.5}
+.mapnote{padding:0 18px 16px;font-size:11px;color:var(--muted);line-height:1.5}
+.legend{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--muted)}.swatch{width:15px;height:10px;border-radius:2px;display:inline-block}
+.detail{padding:17px 19px}.dept-title{font-size:22px;font-weight:800;color:var(--navy);margin:0 0 4px}.dept-meta{font-size:12px;color:var(--muted);margin-bottom:14px}
+.progress{height:9px;background:#e7eef1;border-radius:9px;overflow:hidden;margin:7px 0 4px}.progress span{display:block;height:100%;background:var(--teal);border-radius:9px}
+.smallstats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0}.smallstat{background:#f5f8f9;border-radius:9px;padding:11px}.smallstat span{font-size:11px;color:var(--muted);display:block}.smallstat strong{font-size:17px;display:block;margin-top:4px}
+.tablewrap{max-height:400px;overflow:auto;border-top:1px solid var(--line)}table{width:100%;border-collapse:collapse;font-size:12px}th{position:sticky;top:0;background:#edf3f5;color:#506675;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.4px;z-index:1}th,td{padding:10px 12px;border-bottom:1px solid #edf1f3;white-space:nowrap}td.num{text-align:right;font-variant-numeric:tabular-nums}tr:hover td{background:#f7fafb}.pill{display:inline-block;background:#e6f3f1;color:#176c62;padding:3px 7px;border-radius:20px;font-size:10px;font-weight:700}.empty{padding:28px;text-align:center;color:var(--muted);font-size:13px}
+footer{max-width:1500px;margin:auto;padding:0 22px 24px;color:#71818b;font-size:10px;line-height:1.6}
+@media(max-width:950px){.layout{grid-template-columns:1fr}.mapwrap{min-height:300px}.kpis{grid-template-columns:repeat(2,minmax(130px,1fr))}}
+@media(max-width:760px){.layout{grid-template-columns:1fr}.mapwrap{min-height:300px}#map{max-height:420px}.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.panelhead{padding:14px}.detail{padding:14px}.tablewrap{max-height:360px}}
+@media(max-width:560px){main{padding:12px}.kpis{gap:8px}.kpi{padding:12px}.controls{padding:12px}select,input{width:100%;min-width:0}.controls>div{width:100%}header{padding:20px}.smallstats{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<header>
+  <div class="eyebrow">DEMOSTRACIÓN · DATOS FICTICIOS</div>
+  <h1>Distribución y avance de cupos por departamento</h1>
+  <div class="subtitle">DEMO CON DATOS FICTICIOS: consulta territorial de prueba. Selecciona un departamento en el mapa o usa los filtros para revisar cupos, asignaciones y estados reportados.</div>
+</header>
+<main>
+  <section class="controls">
+    <div class="badge">Intervención activa: MEJORAMIENTOS</div>
+    <div><label for="scheme">Esquema de vivienda</label><select id="scheme"><option value="Todos">Todos los esquemas</option></select></div>
+    <div><label for="department">Departamento</label><select id="department"><option value="Todos">Todos los departamentos</option></select></div>
+    <div><label for="search">Buscar municipio</label><input id="search" type="search" placeholder="Escribe el nombre del municipio"></div>
+    <button id="reset">Restablecer filtros</button>
+  </section>
+  <section class="kpis">
+    <div class="kpi"><div class="label">Cupos base</div><div class="value" id="kBase">—</div><div class="hint">Fonvivienda / cupos ajustados</div></div>
+    <div class="kpi"><div class="label">Asignados</div><div class="value" id="kAssigned">—</div><div class="hint">Hogares únicos en la base</div></div>
+    <div class="kpi"><div class="label">Cumplimiento</div><div class="value" id="kRate">—</div><div class="hint">Asignados frente a cupos base</div></div>
+    <div class="kpi"><div class="label">Municipios</div><div class="value" id="kMuni">—</div><div class="hint">Municipios distintos en la selección</div></div>
+  </section>
+  <section class="layout">
+    <div class="panel">
+      <div class="panelhead"><div><h2>Mapa interactivo de Colombia</h2><p>Haz clic sobre un departamento para ver su detalle.</p></div><div class="legend"><span class="swatch" style="background:#e5eef1"></span>Sin datos <span class="swatch" style="background:#a8d7d0"></span>Menor <span class="swatch" style="background:#176b87"></span>Mayor</div></div>
+      <div class="mapwrap"><svg id="map" viewBox="0 0 650 720" role="img" aria-label="Mapa interactivo de departamentos de Colombia"></svg></div>
+      <div class="mapnote">La intensidad del color representa los cupos base del filtro seleccionado. El mapa departamental usa cartografía derivada del Marco Geoestadístico Nacional 2025 del DANE; San Andrés puede mostrarse mediante recuadro cartográfico ampliado.</div>
+    </div>
+    <div class="panel">
+      <div class="panelhead"><div><h2>Detalle territorial</h2><p id="detailSub">Resumen nacional</p></div></div>
+      <div class="detail" id="detail"></div>
+      <div class="panelhead"><div><h2>Municipios y esquemas</h2><p>Filas del resumen municipal según los filtros activos.</p></div></div>
+      <div class="tablewrap"><table><thead><tr><th>Municipio</th><th>Esquema</th><th>Cupos base</th><th>Asignados</th><th>Habilitados</th></tr></thead><tbody id="rows"></tbody></table></div>
+      <div id="empty" class="empty" style="display:none">No se encontraron municipios para estos filtros.</div>
+    </div>
+  </section>
+</main>
+<footer>
+DEMOSTRACIÓN: todos los registros y cifras de esta versión son ficticios y se usan solo para probar el funcionamiento. No corresponden a cifras oficiales ni a información del Ministerio.
+</footer>
+<script>
+let records = [{"esquema":"Público","departamento":"ANTIOQUIA","depKey":"ANTIOQUIA","municipio":"Municipio Demo Norte","munKey":"MUNICIPIO DEMO NORTE","base":120,"asignados":96,"habilitados":52,"proceso":11,"registrado":17,"no_habilitado":7,"diagnostico":2,"perdida":0,"renuncia":0,"total_reportado":120,"brecha":24,"contrapartida_vr":0,"contrapartida_sgr":0,"alerta":"DATOS FICTICIOS DE DEMOSTRACIÓN"},{"esquema":"Público","departamento":"ANTIOQUIA","depKey":"ANTIOQUIA","municipio":"Municipio Demo Sur","munKey":"MUNICIPIO DEMO SUR","base":79,"asignados":56,"habilitados":30,"proceso":6,"registrado":10,"no_habilitado":4,"diagnostico":1,"perdida":0,"renuncia":0,"total_reportado":79,"brecha":23,"contrapartida_vr":0,"contrapartida_sgr":0,"alerta":"DATOS FICTICIOS DE DEMOSTRACIÓN"},{"esquema":"Público","departamento":"LA GUAJIRA","depKey":"LA GUAJIRA","municipio":"Municipio Demo Wayuu","munKey":"MUNICIPIO DEMO WAYUU","base":98,"asignados":82,"habilitados":45,"proceso":9,"registrado":14,"no_habilitado":6,"diagnostico":2,"perdida":0,"renuncia":0,"total_reportado":98,"brecha":16,"contrapartida_vr":0,"contrapartida_sgr":0,"alerta":"DATOS FICTICIOS DE DEMOSTRACIÓN"},{"esquema":"Público","departamento":"LA GUAJIRA","depKey":"LA GUAJIRA","municipio":"Municipio Demo Costa","munKey":"MUNICIPIO DEMO COSTA","base":72,"asignados":62,"habilitados":34,"proceso":7,"registrado":11,"no_habilitado":4,"diagnostico":1,"perdida":0,"renuncia":0,"total_reportado":72,"brecha":10,"contrapartida_vr":0,"contrapartida_sgr":0,"alerta":"DATOS FICTICIOS DE DEMOSTRACIÓN"},{"esquema":"Público","departamento":"BOGOTA","depKey":"BOGOTA","municipio":"Municipio Demo Centro","munKey":"MUNICIPIO DEMO CENTRO","base":56,"asignados":48,"habilitados":26,"proceso":5,"registrado":8,"no_habilitado":3,"diagnostico":1,"perdida":0,"renuncia":0,"total_reportado":56,"brecha":8,"contrapartida_vr":0,"contrapartida_sgr":0,"alerta":"DATOS FICTICIOS DE DEMOSTRACIÓN"},{"esquema":"Público","departamento":"BOGOTA","depKey":"BOGOTA","municipio":"Municipio Demo Oriente","munKey":"MUNICIPIO DEMO ORIENTE","base":40,"asignados":31,"habilitados":17,"proceso":3,"registrado":5,"no_habilitado":2,"diagnostico":0,"perdida":0,"renuncia":0,"total_reportado":40,"brecha":9,"contrapartida_vr":0,"contrapartida_sgr":0,"alerta":"DATOS FICTICIOS DE DEMOSTRACIÓN"},{"esquema":"Público","departamento":"CAUCA","depKey":"CAUCA","municipio":"Municipio Demo Andino","munKey":"MUNICIPIO DEMO ANDINO","base":84,"asignados":72,"habilitados":39,"proceso":8,"registrado":12,"no_habilitado":5,"diagnostico":2,"perdida":0,"renuncia":0,"total_reportado":84,"brecha":12,"contrapartida_vr":0,"contrapartida_sgr":0,"alerta":"DATOS FICTICIOS DE DEMOSTRACIÓN"},{"esquema":"Público","departamento":"CAUCA","depKey":"CAUCA","municipio":"Municipio Demo Río","munKey":"MUNICIPIO DEMO R O","base":43,"asignados":26,"habilitados":14,"proceso":3,"registrado":4,"no_habilitado":2,"diagnostico":0,"perdida":0,"renuncia":0,"total_reportado":43,"brecha":17,"contrapartida_vr":0,"contrapartida_sgr":0,"alerta":"DATOS FICTICIOS DE DEMOSTRACIÓN"},{"esquema":"Público","departamento":"NARIÑO","depKey":"NARIÑO","municipio":"Municipio Demo Alto","munKey":"MUNICIPIO DEMO ALTO","base":62,"asignados":59,"habilitados":32,"proceso":7,"registrado":10,"no_habilitado":4,"diagnostico":1,"perdida":0,"renuncia":0,"total_reportado":62,"brecha":3,"contrapartida_vr":0,"contrapartida_sgr":0,"alerta":"DATOS FICTICIOS DE DEMOSTRACIÓN"},{"esquema":"Público","departamento":"NARIÑO","depKey":"NARIÑO","municipio":"Municipio Demo Verde","munKey":"MUNICIPIO DEMO VERDE","base":31,"asignados":23,"habilitados":12,"proceso":2,"registrado":4,"no_habilitado":1,"diagnostico":0,"perdida":0,"renuncia":0,"total_reportado":31,"brecha":8,"contrapartida_vr":0,"contrapartida_sgr":0,"alerta":"DATOS FICTICIOS DE DEMOSTRACIÓN"},{"esquema":"Plan Guajira","departamento":"ANTIOQUIA","depKey":"ANTIOQUIA","municipio":"Municipio Demo Norte","munKey":"MUNICIPIO DEMO NORTE","base":117,"asignados":94,"habilitados":51,"proceso":11,"registrado":16,"no_habilitado":7,"diagnostico":2,"perdida":0,"renuncia":0,"total_reportado":117,"brecha":23,"contrapartida_vr":0,"contrapartida_sgr":0,"alerta":"DATOS FICTICIOS DE DEMOSTRACIÓN"},{"esquema":"Plan Guajira","departamento":"ANTIOQUIA","depKey":"ANTIOQUIA","municipio":"Municipio Demo Sur","munKey":"MUNICIPIO DEMO SUR","base":76,"asignados":54,"habilitados":29,"proceso":6,"registrado":9,"no_habilitado":4,"diagnostico":1,"perdida":0,"renuncia":0,"total_reportado":76,"brecha":22,"contrapartida_vr":0,"contrapartida_sgr":0,"alerta":"DATOS FICTICIOS DE DEMOSTRACIÓN"},{"esquema":"Plan Guajira","departamento":"LA GUAJIRA","depKey":"LA GUAJIRA","municipio":"Municipio Demo Wayuu","munKey":"MUNICIPIO DEMO WAYUU","base":95,"asignados":80,"habilitados":44,"proceso":9,"registrado":14,"no_habilitado":6,"diagnostico":2,"perdida":0,"renuncia":0,"total_reportado":95,"brecha":15,"contrapartida_vr":0,"contrapartida_sgr":0,"alerta":"DATOS FICTICIOS DE DEMOSTRACIÓN"},{"esquema":"Plan Guajira","departamento":"LA GUAJIRA","depKey":"LA GUAJIRA","municipio":"Municipio Demo Costa","munKey":"MUNICIPIO DEMO COSTA","base":69,"asignados":60,"habilitados":33,"proceso":7,"registrado":10,"no_habilitado":4,"diagnostico":1,"perdida":0,"renuncia":0,"total_reportado":69,"brecha":9,"contrapartida_vr":0,"contrapartida_sgr":0,"alerta":"DATOS FICTICIOS DE DEMOSTRACIÓN"},{"esquema":"Plan Guajira","departamento":"BOGOTA","depKey":"BOGOTA","municipio":"Municipio Demo Centro","munKey":"MUNICIPIO DEMO CENTRO","base":53,"asignados":46,"habilitados":25,"proceso":5,"registrado":8,"no_habilitado":3,"diagnostico":1,"perdida":0,"renuncia":0,"total_reportado":53,"brecha":7,"contrapartida_vr":0,"contrapartida_sgr":0,"alerta":"DATOS FICTICIOS DE DEMOSTRACIÓN"},{"esquema":"Plan Guajira","departamento":"BOGOTA","depKey":"BOGOTA","municipio":"Municipio Demo Oriente","munKey":"MUNICIPIO DEMO ORIENTE","base":37,"asignados":29,"habilitados":15,"proceso":3,"registrado":5,"no_habilitado":2,"diagnostico":0,"perdida":0,"renuncia":0,"total_reportado":37,"brecha":8,"contrapartida_vr":0,"contrapartida_sgr":0,"alerta":"DATOS FICTICIOS DE DEMOSTRACIÓN"},{"esquema":"Plan Guajira","departamento":"CAUCA","depKey":"CAUCA","municipio":"Municipio Demo Andino","munKey":"MUNICIPIO DEMO ANDINO","base":81,"asignados":70,"habilitados":38,"proceso":8,"registrado":12,"no_habilitado":5,"diagnostico":2,"perdida":0,"renuncia":0,"total_reportado":81,"brecha":11,"contrapartida_vr":0,"contrapartida_sgr":0,"alerta":"DATOS FICTICIOS DE DEMOSTRACIÓN"},{"esquema":"Plan Guajira","departamento":"CAUCA","depKey":"CAUCA","municipio":"Municipio Demo Río","munKey":"MUNICIPIO DEMO R O","base":40,"asignados":24,"habilitados":13,"proceso":2,"registrado":4,"no_habilitado":1,"diagnostico":0,"perdida":0,"renuncia":0,"total_reportado":40,"brecha":16,"contrapartida_vr":0,"contrapartida_sgr":0,"alerta":"DATOS FICTICIOS DE DEMOSTRACIÓN"},{"esquema":"Plan Guajira","departamento":"NARIÑO","depKey":"NARIÑO","municipio":"Municipio Demo Alto","munKey":"MUNICIPIO DEMO ALTO","base":59,"asignados":57,"habilitados":31,"proceso":6,"registrado":10,"no_habilitado":4,"diagnostico":1,"perdida":0,"renuncia":0,"total_reportado":59,"brecha":2,"contrapartida_vr":0,"contrapartida_sgr":0,"alerta":"DATOS FICTICIOS DE DEMOSTRACIÓN"},{"esquema":"Plan Guajira","departamento":"NARIÑO","depKey":"NARIÑO","municipio":"Municipio Demo Verde","munKey":"MUNICIPIO DEMO VERDE","base":28,"asignados":21,"habilitados":11,"proceso":2,"registrado":3,"no_habilitado":1,"diagnostico":0,"perdida":0,"renuncia":0,"total_reportado":28,"brecha":7,"contrapartida_vr":0,"contrapartida_sgr":0,"alerta":"DATOS FICTICIOS DE DEMOSTRACIÓN"},{"esquema":"Asociativo","departamento":"ANTIOQUIA","depKey":"ANTIOQUIA","municipio":"Municipio Demo Norte","munKey":"MUNICIPIO DEMO NORTE","base":114,"asignados":92,"habilitados":50,"proceso":11,"registrado":16,"no_habilitado":7,"diagnostico":2,"perdida":0,"renuncia":0,"total_reportado":114,"brecha":22,"contrapartida_vr":0,"contrapartida_sgr":0,"alerta":"DATOS FICTICIOS DE DEMOSTRACIÓN"},{"esquema":"Asociativo","departamento":"ANTIOQUIA","depKey":"ANTIOQUIA","municipio":"Municipio Demo Sur","munKey":"MUNICIPIO DEMO SUR","base":73,"asignados":52,"habilitados":28,"proceso":6,"registrado":9,"no_habilitado":4,"diagnostico":1,"perdida":0,"renuncia":0,"total_reportado":73,"brecha":21,"contrapartida_vr":0,"contrapartida_sgr":0,"alerta":"DATOS FICTICIOS DE DEMOSTRACIÓN"},{"esquema":"Asociativo","departamento":"LA GUAJIRA","depKey":"LA GUAJIRA","municipio":"Municipio Demo Wayuu","munKey":"MUNICIPIO DEMO WAYUU","base":92,"asignados":78,"habilitados":42,"proceso":9,"registrado":14,"no_habilitado":6,"diagnostico":2,"perdida":0,"renuncia":0,"total_reportado":92,"brecha":14,"contrapartida_vr":0,"contrapartida_sgr":0,"alerta":"DATOS FICTICIOS DE DEMOSTRACIÓN"},{"esquema":"Asociativo","departamento":"LA GUAJIRA","depKey":"LA GUAJIRA","municipio":"Municipio Demo Costa","munKey":"MUNICIPIO DEMO COSTA","base":66,"asignados":58,"habilitados":31,"proceso":6,"registrado":10,"no_habilitado":4,"diagnostico":1,"perdida":0,"renuncia":0,"total_reportado":66,"brecha":8,"contrapartida_vr":0,"contrapartida_sgr":0,"alerta":"DATOS FICTICIOS DE DEMOSTRACIÓN"},{"esquema":"Asociativo","departamento":"BOGOTA","depKey":"BOGOTA","municipio":"Municipio Demo Centro","munKey":"MUNICIPIO DEMO CENTRO","base":50,"asignados":44,"habilitados":24,"proceso":5,"registrado":7,"no_habilitado":3,"diagnostico":1,"perdida":0,"renuncia":0,"total_reportado":50,"brecha":6,"contrapartida_vr":0,"contrapartida_sgr":0,"alerta":"DATOS FICTICIOS DE DEMOSTRACIÓN"},{"esquema":"Asociativo","departamento":"BOGOTA","depKey":"BOGOTA","municipio":"Municipio Demo Oriente","munKey":"MUNICIPIO DEMO ORIENTE","base":34,"asignados":27,"habilitados":14,"proceso":3,"registrado":4,"no_habilitado":2,"diagnostico":0,"perdida":0,"renuncia":0,"total_reportado":34,"brecha":7,"contrapartida_vr":0,"contrapartida_sgr":0,"alerta":"DATOS FICTICIOS DE DEMOSTRACIÓN"},{"esquema":"Asociativo","departamento":"CAUCA","depKey":"CAUCA","municipio":"Municipio Demo Andino","munKey":"MUNICIPIO DEMO ANDINO","base":78,"asignados":68,"habilitados":37,"proceso":8,"registrado":12,"no_habilitado":5,"diagnostico":2,"perdida":0,"renuncia":0,"total_reportado":78,"brecha":10,"contrapartida_vr":0,"contrapartida_sgr":0,"alerta":"DATOS FICTICIOS DE DEMOSTRACIÓN"},{"esquema":"Asociativo","departamento":"CAUCA","depKey":"CAUCA","municipio":"Municipio Demo Río","munKey":"MUNICIPIO DEMO R O","base":37,"asignados":22,"habilitados":12,"proceso":2,"registrado":3,"no_habilitado":1,"diagnostico":0,"perdida":0,"renuncia":0,"total_reportado":37,"brecha":15,"contrapartida_vr":0,"contrapartida_sgr":0,"alerta":"DATOS FICTICIOS DE DEMOSTRACIÓN"},{"esquema":"Asociativo","departamento":"NARIÑO","depKey":"NARIÑO","municipio":"Municipio Demo Alto","munKey":"MUNICIPIO DEMO ALTO","base":56,"asignados":55,"habilitados":30,"proceso":6,"registrado":9,"no_habilitado":4,"diagnostico":1,"perdida":0,"renuncia":0,"total_reportado":56,"brecha":1,"contrapartida_vr":0,"contrapartida_sgr":0,"alerta":"DATOS FICTICIOS DE DEMOSTRACIÓN"},{"esquema":"Asociativo","departamento":"NARIÑO","depKey":"NARIÑO","municipio":"Municipio Demo Verde","munKey":"MUNICIPIO DEMO VERDE","base":25,"asignados":19,"habilitados":10,"proceso":2,"registrado":3,"no_habilitado":1,"diagnostico":0,"perdida":0,"renuncia":0,"total_reportado":25,"brecha":6,"contrapartida_vr":0,"contrapartida_sgr":0,"alerta":"DATOS FICTICIOS DE DEMOSTRACIÓN"},{"esquema":"Comunitario","departamento":"ANTIOQUIA","depKey":"ANTIOQUIA","municipio":"Municipio Demo Norte","munKey":"MUNICIPIO DEMO NORTE","base":111,"asignados":90,"habilitados":49,"proceso":10,"registrado":16,"no_habilitado":7,"diagnostico":2,"perdida":0,"renuncia":0,"total_reportado":111,"brecha":21,"contrapartida_vr":0,"contrapartida_sgr":0,"alerta":"DATOS FICTICIOS DE DEMOSTRACIÓN"},{"esquema":"Comunitario","departamento":"ANTIOQUIA","depKey":"ANTIOQUIA","municipio":"Municipio Demo Sur","munKey":"MUNICIPIO DEMO SUR","base":70,"asignados":50,"habilitados":27,"proceso":6,"registrado":9,"no_habilitado":4,"diagnostico":1,"perdida":0,"renuncia":0,"total_reportado":70,"brecha":20,"contrapartida_vr":0,"contrapartida_sgr":0,"alerta":"DATOS FICTICIOS DE DEMOSTRACIÓN"},{"esquema":"Comunitario","departamento":"LA GUAJIRA","depKey":"LA GUAJIRA","municipio":"Municipio Demo Wayuu","munKey":"MUNICIPIO DEMO WAYUU","base":89,"asignados":76,"habilitados":41,"proceso":9,"registrado":13,"no_habilitado":6,"diagnostico":2,"perdida":0,"renuncia":0,"total_reportado":89,"brecha":13,"contrapartida_vr":0,"contrapartida_sgr":0,"alerta":"DATOS FICTICIOS DE DEMOSTRACIÓN"},{"esquema":"Comunitario","departamento":"LA GUAJIRA","depKey":"LA GUAJIRA","municipio":"Municipio Demo Costa","munKey":"MUNICIPIO DEMO COSTA","base":63,"asignados":56,"habilitados":30,"proceso":6,"registrado":10,"no_habilitado":4,"diagnostico":1,"perdida":0,"renuncia":0,"total_reportado":63,"brecha":7,"contrapartida_vr":0,"contrapartida_sgr":0,"alerta":"DATOS FICTICIOS DE DEMOSTRACIÓN"},{"esquema":"Comunitario","departamento":"BOGOTA","depKey":"BOGOTA","municipio":"Municipio Demo Centro","munKey":"MUNICIPIO DEMO CENTRO","base":47,"asignados":42,"habilitados":23,"proceso":5,"registrado":7,"no_habilitado":3,"diagnostico":1,"perdida":0,"renuncia":0,"total_reportado":47,"brecha":5,"contrapartida_vr":0,"contrapartida_sgr":0,"alerta":"DATOS FICTICIOS DE DEMOSTRACIÓN"},{"esquema":"Comunitario","departamento":"BOGOTA","depKey":"BOGOTA","municipio":"Municipio Demo Oriente","munKey":"MUNICIPIO DEMO ORIENTE","base":31,"asignados":25,"habilitados":13,"proceso":3,"registrado":4,"no_habilitado":2,"diagnostico":0,"perdida":0,"renuncia":0,"total_reportado":31,"brecha":6,"contrapartida_vr":0,"contrapartida_sgr":0,"alerta":"DATOS FICTICIOS DE DEMOSTRACIÓN"},{"esquema":"Comunitario","departamento":"CAUCA","depKey":"CAUCA","municipio":"Municipio Demo Andino","munKey":"MUNICIPIO DEMO ANDINO","base":75,"asignados":66,"habilitados":36,"proceso":7,"registrado":11,"no_habilitado":5,"diagnostico":1,"perdida":0,"renuncia":0,"total_reportado":75,"brecha":9,"contrapartida_vr":0,"contrapartida_sgr":0,"alerta":"DATOS FICTICIOS DE DEMOSTRACIÓN"},{"esquema":"Comunitario","departamento":"CAUCA","depKey":"CAUCA","municipio":"Municipio Demo Río","munKey":"MUNICIPIO DEMO R O","base":34,"asignados":20,"habilitados":11,"proceso":2,"registrado":3,"no_habilitado":1,"diagnostico":0,"perdida":0,"renuncia":0,"total_reportado":34,"brecha":14,"contrapartida_vr":0,"contrapartida_sgr":0,"alerta":"DATOS FICTICIOS DE DEMOSTRACIÓN"},{"esquema":"Comunitario","departamento":"NARIÑO","depKey":"NARIÑO","municipio":"Municipio Demo Alto","munKey":"MUNICIPIO DEMO ALTO","base":53,"asignados":53,"habilitados":29,"proceso":6,"registrado":9,"no_habilitado":4,"diagnostico":1,"perdida":0,"renuncia":0,"total_reportado":53,"brecha":0,"contrapartida_vr":0,"contrapartida_sgr":0,"alerta":"DATOS FICTICIOS DE DEMOSTRACIÓN"},{"esquema":"Comunitario","departamento":"NARIÑO","depKey":"NARIÑO","municipio":"Municipio Demo Verde","munKey":"MUNICIPIO DEMO VERDE","base":22,"asignados":17,"habilitados":9,"proceso":2,"registrado":3,"no_habilitado":1,"diagnostico":0,"perdida":0,"renuncia":0,"total_reportado":22,"brecha":5,"contrapartida_vr":0,"contrapartida_sgr":0,"alerta":"DATOS FICTICIOS DE DEMOSTRACIÓN"},{"esquema":"Banco Mundial","departamento":"ANTIOQUIA","depKey":"ANTIOQUIA","municipio":"Municipio Demo Norte","munKey":"MUNICIPIO DEMO NORTE","base":108,"asignados":88,"habilitados":48,"proceso":10,"registrado":15,"no_habilitado":7,"diagnostico":2,"perdida":0,"renuncia":0,"total_reportado":108,"brecha":20,"contrapartida_vr":0,"contrapartida_sgr":0,"alerta":"DATOS FICTICIOS DE DEMOSTRACIÓN"},{"esquema":"Banco Mundial","departamento":"ANTIOQUIA","depKey":"ANTIOQUIA","municipio":"Municipio Demo Sur","munKey":"MUNICIPIO DEMO SUR","base":67,"asignados":48,"habilitados":26,"proceso":5,"registrado":8,"no_habilitado":3,"diagnostico":1,"perdida":0,"renuncia":0,"total_reportado":67,"brecha":19,"contrapartida_vr":0,"contrapartida_sgr":0,"alerta":"DATOS FICTICIOS DE DEMOSTRACIÓN"},{"esquema":"Banco Mundial","departamento":"LA GUAJIRA","depKey":"LA GUAJIRA","municipio":"Municipio Demo Wayuu","munKey":"MUNICIPIO DEMO WAYUU","base":86,"asignados":74,"habilitados":40,"proceso":8,"registrado":13,"no_habilitado":5,"diagnostico":2,"perdida":0,"renuncia":0,"total_reportado":86,"brecha":12,"contrapartida_vr":0,"contrapartida_sgr":0,"alerta":"DATOS FICTICIOS DE DEMOSTRACIÓN"},{"esquema":"Banco Mundial","departamento":"LA GUAJIRA","depKey":"LA GUAJIRA","municipio":"Municipio Demo Costa","munKey":"MUNICIPIO DEMO COSTA","base":60,"asignados":54,"habilitados":29,"proceso":6,"registrado":9,"no_habilitado":4,"diagnostico":1,"perdida":0,"renuncia":0,"total_reportado":60,"brecha":6,"contrapartida_vr":0,"contrapartida_sgr":0,"alerta":"DATOS FICTICIOS DE DEMOSTRACIÓN"},{"esquema":"Banco Mundial","departamento":"BOGOTA","depKey":"BOGOTA","municipio":"Municipio Demo Centro","munKey":"MUNICIPIO DEMO CENTRO","base":44,"asignados":40,"habilitados":22,"proceso":4,"registrado":7,"no_habilitado":3,"diagnostico":1,"perdida":0,"renuncia":0,"total_reportado":44,"brecha":4,"contrapartida_vr":0,"contrapartida_sgr":0,"alerta":"DATOS FICTICIOS DE DEMOSTRACIÓN"},{"esquema":"Banco Mundial","departamento":"BOGOTA","depKey":"BOGOTA","municipio":"Municipio Demo Oriente","munKey":"MUNICIPIO DEMO ORIENTE","base":28,"asignados":23,"habilitados":12,"proceso":2,"registrado":4,"no_habilitado":1,"diagnostico":0,"perdida":0,"renuncia":0,"total_reportado":28,"brecha":5,"contrapartida_vr":0,"contrapartida_sgr":0,"alerta":"DATOS FICTICIOS DE DEMOSTRACIÓN"},{"esquema":"Banco Mundial","departamento":"CAUCA","depKey":"CAUCA","municipio":"Municipio Demo Andino","munKey":"MUNICIPIO DEMO ANDINO","base":72,"asignados":64,"habilitados":35,"proceso":7,"registrado":11,"no_habilitado":5,"diagnostico":1,"perdida":0,"renuncia":0,"total_reportado":72,"brecha":8,"contrapartida_vr":0,"contrapartida_sgr":0,"alerta":"DATOS FICTICIOS DE DEMOSTRACIÓN"},{"esquema":"Banco Mundial","departamento":"CAUCA","depKey":"CAUCA","municipio":"Municipio Demo Río","munKey":"MUNICIPIO DEMO R O","base":31,"asignados":18,"habilitados":9,"proceso":2,"registrado":3,"no_habilitado":1,"diagnostico":0,"perdida":0,"renuncia":0,"total_reportado":31,"brecha":13,"contrapartida_vr":0,"contrapartida_sgr":0,"alerta":"DATOS FICTICIOS DE DEMOSTRACIÓN"},{"esquema":"Banco Mundial","departamento":"NARIÑO","depKey":"NARIÑO","municipio":"Municipio Demo Alto","munKey":"MUNICIPIO DEMO ALTO","base":50,"asignados":51,"habilitados":28,"proceso":6,"registrado":9,"no_habilitado":4,"diagnostico":1,"perdida":0,"renuncia":0,"total_reportado":50,"brecha":-1,"contrapartida_vr":0,"contrapartida_sgr":0,"alerta":"DATOS FICTICIOS DE DEMOSTRACIÓN"},{"esquema":"Banco Mundial","departamento":"NARIÑO","depKey":"NARIÑO","municipio":"Municipio Demo Verde","munKey":"MUNICIPIO DEMO VERDE","base":19,"asignados":15,"habilitados":8,"proceso":1,"registrado":2,"no_habilitado":1,"diagnostico":0,"perdida":0,"renuncia":0,"total_reportado":19,"brecha":4,"contrapartida_vr":0,"contrapartida_sgr":0,"alerta":"DATOS FICTICIOS DE DEMOSTRACIÓN"}];
+const schemes = ["Asociativo", "Banco Mundial", "Comunitario", "Plan Guajira", "Público"];
+const geoUrl = "https://raw.githubusercontent.com/ytolosa/mapas-colombia/main/output/geojson/col_departamentos_inset_nacional.geojson";
+const fmt = n => (Number(n)||0).toLocaleString('es-CO');
+const norm = s => (s||"").toString().normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/[^A-Z0-9 ]/g," ").replace(/\s+/g," ").trim();
+const depKey = s => {let n=norm(s); return n.includes("SAN ANDRES") ? "SAN ANDRES PROVIDENCIA Y SANTA CATALINA" : n;};
+const sumFields = ["base","asignados","habilitados","proceso","registrado","no_habilitado","diagnostico","perdida","renuncia","total_reportado","brecha","contrapartida_vr","contrapartida_sgr"];
+const schemeSelect=document.getElementById("scheme"), deptSelect=document.getElementById("department"), searchInput=document.getElementById("search");
+schemes.forEach(s=>{let o=document.createElement("option");o.value=s;o.textContent=s;schemeSelect.appendChild(o)});
+const allDeps=[...new Map(records.map(r=>[r.depKey,r.departamento])).entries()].sort((a,b)=>a[1].localeCompare(b[1],"es"));
+allDeps.forEach(([key,name])=>{let o=document.createElement("option");o.value=key;o.textContent=name;deptSelect.appendChild(o)});
+let geoFeatures=[];
+function filtered(){
+ const sch=schemeSelect.value, dep=deptSelect.value, q=norm(searchInput.value);
+ return records.filter(r=>(sch==="Todos"||r.esquema===sch)&&(dep==="Todos"||r.depKey===dep)&&(!q||norm(r.municipio).includes(q)));
+}
+function summarize(arr){
+ const out={};sumFields.forEach(k=>out[k]=arr.reduce((a,r)=>a+(Number(r[k])||0),0));
+ out.municipios=new Set(arr.map(r=>r.munKey)).size;
+ out.porcentaje=out.base?out.asignados/out.base*100:0;
+ out.exceso=arr.filter(r=>r.asignados>r.base).length;
+ return out;
+}
+function setText(id,v){document.getElementById(id).textContent=v}
+function render(){
+ const arr=filtered(), s=summarize(arr);
+ setText("kBase",fmt(s.base));setText("kAssigned",fmt(s.asignados));setText("kRate",s.base?`${s.porcentaje.toLocaleString('es-CO',{maximumFractionDigits:1})}%`:"—");setText("kMuni",fmt(s.municipios));
+ const selected=deptSelect.value;
+ const deptName=selected==="Todos"?"Colombia":(allDeps.find(d=>d[0]===selected)?.[1]||selected);
+ setText("detailSub",selected==="Todos"?"Resumen nacional":`Departamento seleccionado · ${deptName}`);
+ const baseText=s.base?`${s.porcentaje.toLocaleString('es-CO',{maximumFractionDigits:1})}% de asignación sobre cupos base`:"No hay cupos base para esta selección";
+ document.getElementById("detail").innerHTML=`
+  <h3 class="dept-title">${deptName}</h3><div class="dept-meta">${fmt(s.municipios)} municipios · ${schemeSelect.value==="Todos"?"Todos los esquemas":schemeSelect.value}</div>
+  <div class="smallstats">
+   <div class="smallstat"><span>Cupos base</span><strong>${fmt(s.base)}</strong></div>
+   <div class="smallstat"><span>Asignados</span><strong>${fmt(s.asignados)}</strong></div>
+   <div class="smallstat"><span>Habilitados</span><strong>${fmt(s.habilitados)}</strong></div>
+   <div class="smallstat"><span>En proceso de registro</span><strong>${fmt(s.proceso)}</strong></div>
+   <div class="smallstat"><span>Hogar registrado</span><strong>${fmt(s.registrado)}</strong></div>
+   <div class="smallstat"><span>No habilitado</span><strong>${fmt(s.no_habilitado)}</strong></div>
+   <div class="smallstat"><span>No habilitado por diagnóstico</span><strong>${fmt(s.diagnostico)}</strong></div>
+   <div class="smallstat"><span>Pérdida de ejecutoriedad</span><strong>${fmt(s.perdida)}</strong></div>
+  </div>
+  <div style="font-size:12px;font-weight:700">${baseText}</div><div class="progress"><span style="width:${Math.min(100,Math.max(0,s.porcentaje))}%"></span></div>
+  <div style="font-size:11px;color:#647987">Renuncias: ${fmt(s.renuncia)} · Registros por encima del cupo base: ${fmt(s.exceso)}</div>`;
+ const tbody=document.getElementById("rows");tbody.innerHTML="";
+ const sorted=[...arr].sort((a,b)=>a.departamento.localeCompare(b.departamento,"es")||a.municipio.localeCompare(b.municipio,"es")||a.esquema.localeCompare(b.esquema,"es"));
+ sorted.slice(0,500).forEach(r=>{
+  const tr=document.createElement("tr");
+  tr.innerHTML=`<td>${r.municipio}</td><td><span class="pill">${r.esquema}</span></td><td class="num">${fmt(r.base)}</td><td class="num">${fmt(r.asignados)}</td><td class="num">${fmt(r.habilitados)}</td>`;
+  tbody.appendChild(tr);
+ });
+ document.getElementById("empty").style.display=arr.length?"none":"block";
+ paintMap();
+}
+function deptAgg(){
+ const sch=schemeSelect.value;
+ const out={};
+ records.filter(r=>sch==="Todos"||r.esquema===sch).forEach(r=>{
+  if(!out[r.depKey])out[r.depKey]={base:0,asignados:0,municipios:new Set()};
+  out[r.depKey].base+=r.base;out[r.depKey].asignados+=r.asignados;out[r.depKey].municipios.add(r.munKey);
+ });
+ return out;
+}
+function paintMap(){
+ if(!geoFeatures.length)return;
+ const svg=d3.select("#map");svg.selectAll("*").remove();
+ const projection=d3.geoMercator().fitExtent([[10,10],[630,700]],{type:"FeatureCollection",features:geoFeatures});
+ const path=d3.geoPath(projection);
+ const agg=deptAgg(), max=Math.max(1,...Object.values(agg).map(x=>x.base));
+ const color=d3.scaleLinear().domain([0,max]).range(["#dce9ed","#176b87"]);
+ svg.selectAll("path").data(geoFeatures).join("path")
+ .attr("class",f=>"dept"+(depKey(f.properties.dpto_nombre||f.properties.DPTO_NOMBRE||f.properties.NOM_DPTO||f.properties.departamen)===deptSelect.value?" selected":""))
+ .attr("d",path)
+ .attr("fill",f=>{const k=depKey(f.properties.dpto_nombre||f.properties.DPTO_NOMBRE||f.properties.NOM_DPTO||f.properties.departamen);return agg[k]?color(agg[k].base):"#e5eef1"})
+ .append("title").text(f=>{const name=f.properties.dpto_nombre||f.properties.DPTO_NOMBRE||f.properties.NOM_DPTO||f.properties.departamen||"Departamento";const a=agg[depKey(name)];return `${name}\nCupos base: ${fmt(a?.base||0)}\nAsignados: ${fmt(a?.asignados||0)}\nClic para consultar`});
+ svg.selectAll("path").on("click",(event,f)=>{
+  const name=f.properties.dpto_nombre||f.properties.DPTO_NOMBRE||f.properties.NOM_DPTO||f.properties.departamen;
+  const k=depKey(name);
+  const match=allDeps.find(d=>d[0]===k);
+  if(match){deptSelect.value=k;render();}
+ });
+}
+schemeSelect.addEventListener("change",render);
+deptSelect.addEventListener("change",render);
+searchInput.addEventListener("input",render);
+document.getElementById("reset").addEventListener("click",()=>{schemeSelect.value="Todos";deptSelect.value="Todos";searchInput.value="";render()});
+function cleanHeader(v){return (v||"").toString().normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]+/g," ").trim()}
+function findCol(headers, candidates){for(let i=0;i<headers.length;i++){const h=cleanHeader(headers[i]);if(candidates.some(c=>h===cleanHeader(c)))return i;}return -1;}
+function num(v){if(typeof v==="number")return Number.isFinite(v)?v:0;if(v===null||v===undefined||v==="")return 0;const n=Number(String(v).replace(/\./g,"").replace(",","."));return Number.isFinite(n)?n:0;}
+function parseSummarySheet(sheet){
+ const matrix=XLSX.utils.sheet_to_json(sheet,{header:1,defval:null,raw:true});
+ let headerRow=-1;
+ for(let i=0;i<Math.min(matrix.length,20);i++){const h=matrix[i].map(cleanHeader);if(h.includes("esquema")&&h.includes("departamento")&&h.includes("municipio")&&h.some(x=>x.includes("cupos base"))){headerRow=i;break;}}
+ if(headerRow<0)throw new Error('No encontré la fila de encabezados esperada en “Resumen por Municipio”.');
+ const headers=matrix[headerRow];
+ const ix={esquema:findCol(headers,["Esquema"]),dep:findCol(headers,["Departamento"]),mun:findCol(headers,["Municipio"]),base:findCol(headers,["Cupos base (Fonvivienda / ajustados)","Cupos base"]),asignados:findCol(headers,["Asignados (Base de Datos, único)","Asignados"]),habilitados:findCol(headers,["Habilitados"]),proceso:findCol(headers,["En proceso de registro"]),registrado:findCol(headers,["Hogar registrado"]),nohab:findCol(headers,["No habilitado"]),diag:findCol(headers,["No habilitado por diagnóstico","No habilitado por diagnostico"]),perdida:findCol(headers,["Pérdida de ejecutoriedad","Perdida de ejecutoriedad"]),renuncia:findCol(headers,["Renuncia al subsidio"]),total:findCol(headers,["Total cupos reportados"]),brecha:findCol(headers,["Brecha (cupo base - asignados)","Brecha"]),vr:findCol(headers,["Cupos contrapartida VR"]),sgr:findCol(headers,["Cupos contrapartida SGR"])};
+ for(const k of ["esquema","dep","mun","base","asignados"])if(ix[k]<0)throw new Error('Falta una columna obligatoria: '+k+'.');
+ const out=[];
+ for(let i=headerRow+1;i<matrix.length;i++){
+  const row=matrix[i], scheme=(row[ix.esquema]||"").toString().trim(), dep=(row[ix.dep]||"").toString().trim(), mun=(row[ix.mun]||"").toString().trim();
+  if(!scheme||!dep||!mun)continue;
+  // Current version is strictly for improvements; exclude rows explicitly marked as new housing.
+  const joined=row.map(x=>(x??"").toString()).join(" ").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase();
+  if(joined.includes("VIVIENDA NUEVA") && !joined.includes("MEJORAMIENTO"))continue;
+  const base=num(row[ix.base]), assigned=num(row[ix.asignados]);
+  out.push({esquema:scheme,departamento:dep,depKey:depKey(dep),municipio:mun,munKey:norm(mun),base,asignados:assigned,habilitados:num(row[ix.habilitados]),proceso:num(row[ix.proceso]),registrado:num(row[ix.registrado]),no_habilitado:num(row[ix.nohab]),diagnostico:num(row[ix.diag]),perdida:num(row[ix.perdida]),renuncia:num(row[ix.renuncia]),total_reportado:num(row[ix.total]),brecha:num(row[ix.brecha])||base-assigned,contrapartida_vr:num(row[ix.vr]),contrapartida_sgr:num(row[ix.sgr]),alerta:assigned>base?"Asignados superan los cupos base: validar.":""});
+ }
+ if(!out.length)throw new Error("No encontré filas de municipios válidas en la hoja.");
+ return out;
+}
+fetch(geoUrl).then(r=>{if(!r.ok)throw new Error("No se pudo cargar la cartografía");return r.json()}).then(g=>{
+ geoFeatures=g.features||[];paintMap();render();
+}).catch(err=>{
+ document.getElementById("map").outerHTML='<div class="empty" style="max-width:450px">No se pudo cargar el mapa. Revisa la conexión a internet y vuelve a abrir este archivo. Los filtros y las cifras requieren que cargue la cartografía externa.</div>';
+ render();
+});
+</script>
+</body></html>
